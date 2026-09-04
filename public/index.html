@@ -104,8 +104,6 @@
         aspect-ratio: 1 / 1;
         display: grid;
         place-items: center;
-        font-size: clamp(24px, 3vw, 38px);
-        font-family: "Times New Roman", Times, serif;
         user-select: none;
         cursor: pointer;
         transition: background-color 120ms;
@@ -119,6 +117,25 @@
       .dark {
         background: var(--dark);
         color: #f4f4f0;
+      }
+
+      .piece {
+        display: block;
+        line-height: 1;
+        font-size: clamp(30px, 3.6vw, 40px);
+        font-family: "Segoe UI Symbol", "Noto Sans Symbols2", "Noto Sans", "Times New Roman", Times,
+          serif;
+        pointer-events: none;
+        user-select: none;
+      }
+
+      .piece.white {
+        color: #fdfdfd;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+      }
+
+      .piece.black {
+        color: #161616;
       }
 
       .square.selected {
@@ -289,6 +306,12 @@
         return `${files[file]}${8 - rankIndex}`;
       }
 
+      const fileIndexes = Array.from({ length: 8 }, (_, i) => i);
+
+      function makeOrder(isFlipped) {
+        return isFlipped ? [...fileIndexes].reverse() : fileIndexes;
+      }
+
       function renderCoordinates() {
         const files = boardFlipped ? ["h", "g", "f", "e", "d", "c", "b", "a"] : ["a", "b", "c", "d", "e", "f", "g", "h"];
         const ranks = boardFlipped ? ["1", "2", "3", "4", "5", "6", "7", "8"] : ["8", "7", "6", "5", "4", "3", "2", "1"];
@@ -328,19 +351,28 @@
         const board = state.board || [];
         boardRoot.innerHTML = "";
 
+        const ranks = makeOrder(boardFlipped);
+        const files = makeOrder(boardFlipped);
+
         for (let row = 0; row < 8; row++) {
-          const rankIndex = boardFlipped ? 7 - row : row;
+          const rankIndex = ranks[row];
           for (let col = 0; col < 8; col++) {
-            const fileIndex = boardFlipped ? 7 - col : col;
+            const fileIndex = files[col];
             const square = squareName(fileIndex, rankIndex);
             const squareVal = board[rankIndex]?.[fileIndex] || "";
             const piece = pieceGlyphs[squareVal] || "";
-            const isLight = (rankIndex + fileIndex) % 2 === 0;
+            const isLight = (row + col) % 2 === 0;
             const el = document.createElement("button");
             el.className = `square ${isLight ? "light" : "dark"}`;
             el.dataset.square = square;
             el.dataset.piece = squareVal;
-            el.textContent = piece;
+            if (piece) {
+              const pieceEl = document.createElement("span");
+              const isWhite = squareVal.startsWith("w");
+              pieceEl.className = `piece ${isWhite ? "white" : "black"}`;
+              pieceEl.textContent = piece;
+              el.appendChild(pieceEl);
+            }
             if (selected === square) {
               el.classList.add("selected");
             }
