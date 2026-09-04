@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Latch WebMCP Chess</title>
+    <style>
+      :root {
+        --bg: #081022;
+        --panel: #0f1a38;
+        --panel-alt: #14214d;
+        --light: #f0d9b5;
+        --dark: #b58863;
+        --line: #25345f;
+        --accent: #67d7ff;
+        --accent-soft: #67d7ff33;
+        --warn: #ffaf6b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: #e8edf8;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        background: radial-gradient(circle at 20% 0%, #11235f, #060b1c 50%, #040812);
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+      }
+
+      .wrap {
+        width: min(980px, 96vw);
+        margin: 28px auto;
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 20px;
+        align-items: start;
+      }
+
+      .board {
+        background: linear-gradient(180deg, #1f356d, #15224e);
+        border: 1px solid #2f4d98;
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: 0 14px 35px #00000050;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 1.45rem;
+      }
+
+      .sub {
+        color: #bbcaea;
+        margin-bottom: 12px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(46px, 1fr));
+        grid-template-rows: repeat(8, minmax(46px, 1fr));
+        border: 2px solid #5f77cc;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-top: 8px;
+      }
+
+      .square {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        display: grid;
+        place-items: center;
+        font-size: clamp(24px, 3vw, 38px);
+        font-family: "Times New Roman", Times, serif;
+        user-select: none;
+        cursor: pointer;
+        transition: background-color 120ms;
+      }
+
+      .light {
+        background: var(--light);
+        color: #222;
+      }
+
+      .dark {
+        background: var(--dark);
+        color: #f4f4f0;
+      }
+
+      .square.selected {
+        outline: 3px solid var(--accent);
+        z-index: 1;
+        position: relative;
+      }
+
+      .square.hint {
+        box-shadow: inset 0 0 0 3px var(--warn);
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid #2f4d98;
+        border-radius: 16px;
+        padding: 16px;
+      }
+
+      .line {
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel-alt);
+        min-height: 120px;
+        white-space: pre-wrap;
+        font-family: ui-monospace, Menlo, Consolas, "SFMono-Regular", monospace;
+      }
+
+      button,
+      .btn {
+        border: 0;
+        border-radius: 9px;
+        padding: 9px 12px;
+        background: #2e74ff;
+        color: white;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      button:hover,
+      .btn:hover {
+        filter: brightness(1.08);
+      }
+
+      .btn.secondary {
+        background: #2b5bbf;
+      }
+
+      .status {
+        margin: 8px 0 14px;
+        line-height: 1.45;
+        color: #d7def4;
+      }
+
+      .small {
+        color: #97a8d8;
+        font-size: 13px;
+        margin-top: 14px;
+      }
+
+      .row {
+        display: flex;
+        gap: 8px;
+        margin: 8px 0 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="board">
+        <h1>Latch - WebMCP Chess</h1>
+        <div class="sub">White is human, black is agent. One move by one color per turn.</div>
+        <div id="status" class="status">Loading...</div>
+        <div id="board" class="grid"></div>
+      </div>
+      <div class="panel">
+        <div class="row">
+          <button id="newBtn">New game</button>
+          <button id="autoBtn" class="secondary">Auto request agent move</button>
+        </div>
+        <div id="log" class="line">init</div>
+        <div class="small">
+          Tools: get_game_state, get_board_state, start_game, submit_human_move, make_agent_move, request_agent_move.
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      const pieceGlyphs = {
+        wp: "♙",
+        wn: "♘",
+        wb: "♗",
+        wr: "♖",
+        wq: "♕",
+        wk: "♔",
+        bp: "♟",
+        bn: "♞",
+        bb: "♝",
+        br: "♜",
+        bq: "♛",
+        bk: "♚",
+      };
+
+      const stateText = document.getElementById("status");
+      const boardRoot = document.getElementById("board");
+      const log = document.getElementById("log");
+      const newBtn = document.getElementById("newBtn");
+      const autoBtn = document.getElementById("autoBtn");
+
+      let selected = null;
+      let state = null;
+      let autoAgent = false;
+
+      const getModelContext = () =>
+        (typeof document !== "undefined" && (document.modelContext ?? navigator.modelContext)) || null;
+
+      async function callTool(name, args = {}) {
+        if (window.openai && typeof window.openai.callTool === "function") {
+          const result = await window.openai.callTool({
+            name,
+            arguments: args,
+          });
+          if (result && result.content && result.content[0] && typeof result.content[0].text === "string") {
+            return JSON.parse(result.content[0].text);
+          }
+          return result;
+        }
+
+        const response = await fetch("/api/tools/call", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name, arguments: args }),
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.content?.[0]?.text || "tool call failed");
+        }
+
+        if (payload.content?.[0]?.text) {
+          try {
+            return JSON.parse(payload.content[0].text);
+          } catch {
+            return payload;
+          }
+        }
+        return payload;
+      }
+
+      function squareName(file, rankIndex) {
+        const files = "abcdefgh";
+        return `${files[file]}${8 - rankIndex}`;
+      }
+
+      async function refresh() {
+        const payload = await callTool("get_game_state");
+        state = payload.state || payload;
+        if (!state) return;
+
+        const board = state.board || [];
+        boardRoot.innerHTML = "";
+
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            const square = squareName(col, row);
+            const squareVal = board[row]?.[col] || "";
+            const piece = pieceGlyphs[squareVal] || "";
+            const isLight = (row + col) % 2 === 0;
+            const el = document.createElement("button");
+            el.className = `square ${isLight ? "light" : "dark"}`;
+            el.dataset.square = square;
+            el.dataset.piece = squareVal;
+            el.textContent = piece;
+            if (selected === square) {
+              el.classList.add("selected");
+            }
+            el.addEventListener("click", () => onSquareClick(square));
+            boardRoot.appendChild(el);
+          }
+        }
+
+        const currentTurn = state.turn === "w" ? "White (human)" : "Black (agent)";
+        const flags = [];
+        if (state.inCheck) flags.push("in check");
+        if (state.isGameOver) flags.push("game over");
+        const moveInfo = state.history?.[state.history.length - 1] ? ` | last: ${state.history.at(-1)}` : "";
+        stateText.textContent = `${currentTurn} | legal moves: ${state.legalMoves} | status: ${flags.join(", ") || "steady"}${moveInfo}`;
+
+        if (state.isGameOver) {
+          stateText.textContent = `Game over: ${state.result}`;
+          autoAgent = false;
+          autoBtn.textContent = "Auto request agent move";
+        }
+      }
+
+      async function pokeAgentAfterHumanMove(from, to) {
+        const next = `${from} → ${to}`;
+        appendLog(`Human move: ${next}`);
+        try {
+          if (window.openai && typeof window.openai.sendFollowUpMessage === "function") {
+            await window.openai.sendFollowUpMessage({
+              messages: [
+                {
+                  role: "assistant",
+                  content: `Human played ${next}. Use tool request_agent_move and continue with a legal black move.`,
+                },
+              ],
+            });
+          }
+        } catch {
+          // fallback to local auto move (if allowed by user)
+          if (autoAgent) {
+            await requestAgentMove();
+          }
+        }
+      }
+
+      async function requestAgentMove() {
+        try {
+          const response = await callTool("request_agent_move");
+          appendLog(`Agent move: ${response?.move || "done"}`);
+          await refresh();
+        } catch (err) {
+          appendLog(`Agent move rejected: ${err.message}`);
+        }
+      }
+
+      async function onSquareClick(square) {
+        if (!state) return;
+        if (state.turn !== "w" || state.isGameOver) return;
+
+        if (!selected) {
+          const file = square.charCodeAt(0) - 97;
+          const rank = 8 - Number(square[1]);
+          const cellPiece = state.board?.[rank]?.[file];
+          if (!cellPiece || cellPiece[0] !== "w") {
+            return;
+          }
+          selected = square;
+          refresh();
+          return;
+        }
+
+        const from = selected;
+        const to = square;
+        selected = null;
+        try {
+          const response = await callTool("submit_human_move", { from, to });
+          appendLog(`Move accepted: ${response?.move || `${from}->${to}`}`);
+          await refresh();
+          await pokeAgentAfterHumanMove(from, to);
+          if (autoAgent && state?.turn === "b" && !state?.isGameOver) {
+            await requestAgentMove();
+          }
+        } catch (err) {
+          appendLog(`Move failed: ${err.message}`);
+          refresh();
+        }
+      }
+
+      function appendLog(text) {
+        const now = new Date().toLocaleTimeString("en", { hour12: false });
+        log.textContent = `[${now}] ${text}\n${log.textContent}`;
+      }
+
+      function registerWebMcpTools() {
+        const bridge = getModelContext();
+        if (!bridge || typeof bridge.registerTool !== "function") {
+          return;
+        }
+        if (window.__latchMcpReady) return;
+
+        const callViaBridge = async (name, args) => {
+          const response = await fetch("/api/tools/call", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ name, arguments: args }),
+          });
+          return response.text();
+        };
+
+        const toolDefs = [
+          {
+            name: "get_game_state",
+            description: "Get current chess board state including FEN, turn and game status.",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+            execute: async () => {
+              const txt = await callViaBridge("get_game_state", {});
+              return { content: [{ type: "text", text: txt }] };
+            },
+          },
+          {
+            name: "get_board_state",
+            description: "Alias for get_game_state. Returns board state for LATCH Chess.",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+            execute: async () => {
+              const txt = await callViaBridge("get_board_state", {});
+              return { content: [{ type: "text", text: txt }] };
+            },
+          },
+          {
+            name: "start_game",
+            description: "Reset chess game to the initial opening position.",
+            inputSchema: {
+              type: "object",
+              properties: { fen: { type: "string", description: "optional FEN override" } },
+              additionalProperties: false,
+            },
+            execute: async () => {
+              const txt = await callViaBridge("start_game", {});
+              await refresh();
+              return { content: [{ type: "text", text: txt }] };
+            },
+          },
+          {
+            name: "submit_human_move",
+            description: "Submit a white move in UCI format (from/to squares).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                from: { type: "string" },
+                to: { type: "string" },
+                promotion: { type: "string", enum: ["q", "r", "b", "n"] },
+              },
+              required: ["from", "to"],
+              additionalProperties: false,
+            },
+            execute: async ({ from, to, promotion }) => {
+              const txt = await callViaBridge("submit_human_move", { from, to, promotion });
+              await refresh();
+              return { content: [{ type: "text", text: txt }] };
+            },
+          },
+          {
+            name: "make_agent_move",
+            description: "Submit a black move in UCI format.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                from: { type: "string" },
+                to: { type: "string" },
+                promotion: { type: "string", enum: ["q", "r", "b", "n"] },
+              },
+              required: ["from", "to"],
+              additionalProperties: false,
+            },
+            execute: async ({ from, to, promotion }) => {
+              const txt = await callViaBridge("make_agent_move", { from, to, promotion });
+              await refresh();
+              return { content: [{ type: "text", text: txt }] };
+            },
+          },
+          {
+            name: "request_agent_move",
+            description: "Ask the local LATCH Chess engine to produce one legal black move.",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+            execute: async () => {
+              const txt = await callViaBridge("request_agent_move", {});
+              await refresh();
+              return { content: [{ type: "text", text: txt }] };
+            },
+          },
+        ];
+
+        for (const tool of toolDefs) {
+          bridge.registerTool(tool);
+        }
+        window.__latchMcpReady = true;
+      }
+
+      newBtn.onclick = async () => {
+        await callTool("start_game");
+        await refresh();
+        appendLog("New game started");
+      };
+
+      autoBtn.onclick = () => {
+        autoAgent = !autoAgent;
+        autoBtn.textContent = autoAgent ? "Auto request agent move (on)" : "Auto request agent move";
+      };
+
+      setInterval(() => {
+        registerWebMcpTools();
+      }, 1200);
+
+      window.addEventListener("load", async () => {
+        await refresh();
+        registerWebMcpTools();
+        appendLog("Board ready.");
+      });
+    </script>
+  </body>
+</html>
