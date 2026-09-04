@@ -65,7 +65,38 @@
         border: 2px solid #5f77cc;
         border-radius: 12px;
         overflow: hidden;
+      }
+
+      .board-area {
         margin-top: 8px;
+      }
+
+      .file-labels {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(46px, 1fr));
+        margin: 0 22px;
+        color: #c9d6ff;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .file-label {
+        text-align: center;
+      }
+
+      .board-row {
+        display: grid;
+        grid-template-columns: 20px 1fr 20px;
+      }
+
+      .rank-labels {
+        display: grid;
+        grid-template-rows: repeat(8, minmax(46px, 1fr));
+        color: #c9d6ff;
+        font-size: 12px;
+        font-weight: 700;
+        justify-items: center;
+        align-items: center;
       }
 
       .square {
@@ -159,10 +190,18 @@
   <body>
     <div class="wrap">
       <div class="board">
-        <h1>Latch - WebMCP Chess</h1>
+      <h1>Latch - WebMCP Chess</h1>
         <div class="sub">White is human, black is agent. One move by one color per turn.</div>
         <div id="status" class="status">Loading...</div>
-        <div id="board" class="grid"></div>
+        <div class="board-area">
+          <div id="fileLabelsTop" class="file-labels"></div>
+          <div class="board-row">
+            <div id="rankLabelsLeft" class="rank-labels"></div>
+            <div id="board" class="grid"></div>
+            <div id="rankLabelsRight" class="rank-labels"></div>
+          </div>
+          <div id="fileLabelsBottom" class="file-labels"></div>
+        </div>
       </div>
       <div class="panel">
         <div class="row">
@@ -195,6 +234,10 @@
 
       const stateText = document.getElementById("status");
       const boardRoot = document.getElementById("board");
+      const fileLabelsTop = document.getElementById("fileLabelsTop");
+      const fileLabelsBottom = document.getElementById("fileLabelsBottom");
+      const rankLabelsLeft = document.getElementById("rankLabelsLeft");
+      const rankLabelsRight = document.getElementById("rankLabelsRight");
       const log = document.getElementById("log");
       const newBtn = document.getElementById("newBtn");
       const autoBtn = document.getElementById("autoBtn");
@@ -246,6 +289,37 @@
         return `${files[file]}${8 - rankIndex}`;
       }
 
+      function renderCoordinates() {
+        const files = boardFlipped ? ["h", "g", "f", "e", "d", "c", "b", "a"] : ["a", "b", "c", "d", "e", "f", "g", "h"];
+        const ranks = boardFlipped ? ["1", "2", "3", "4", "5", "6", "7", "8"] : ["8", "7", "6", "5", "4", "3", "2", "1"];
+
+        fileLabelsTop.innerHTML = "";
+        fileLabelsBottom.innerHTML = "";
+        for (const file of files) {
+          const top = document.createElement("div");
+          top.className = "file-label";
+          top.textContent = file;
+          fileLabelsTop.appendChild(top);
+
+          const bottom = document.createElement("div");
+          bottom.className = "file-label";
+          bottom.textContent = file;
+          fileLabelsBottom.appendChild(bottom);
+        }
+
+        rankLabelsLeft.innerHTML = "";
+        rankLabelsRight.innerHTML = "";
+        for (const rank of ranks) {
+          const left = document.createElement("div");
+          left.textContent = rank;
+          rankLabelsLeft.appendChild(left);
+
+          const right = document.createElement("div");
+          right.textContent = rank;
+          rankLabelsRight.appendChild(right);
+        }
+      }
+
       async function refresh() {
         const payload = await callTool("get_game_state");
         state = payload.state || payload;
@@ -287,6 +361,8 @@
           autoAgent = false;
           autoBtn.textContent = "Auto request agent move";
         }
+
+        renderCoordinates();
       }
 
       async function pokeAgentAfterHumanMove(from, to) {
