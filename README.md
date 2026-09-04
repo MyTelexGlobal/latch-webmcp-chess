@@ -36,7 +36,20 @@ PORT=4175 npm run start:4175
 
 The server will also fallback automatically from `PORT` to the next free port while running.
 
-If you still see `ERR_CONNECTION_REFUSED`, it means the process did not start on your machine and you need to run it from a real terminal first (this workspace cannot always bind localhost sockets).
+If you still see `ERR_CONNECTION_REFUSED`, it usually means the app is not running in the environment where your browser runs.  
+Run it from a normal terminal window:
+
+```bash
+cd /Users/yura/Documents/Codex/2026-08-30/new-chat-2/latch-webmcp-chess
+npm install
+npm run start:4175
+```
+
+If you still can't connect, check a different port:
+
+```bash
+PORT=4176 npm run start:4176
+```
 
 ## Architecture
 
