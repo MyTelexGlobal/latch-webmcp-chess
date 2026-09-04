@@ -168,6 +168,7 @@
         <div class="row">
           <button id="newBtn">New game</button>
           <button id="autoBtn" class="secondary">Auto request agent move</button>
+          <button id="flipBtn" class="secondary">Flip board</button>
         </div>
         <div id="log" class="line">init</div>
         <div class="small">
@@ -197,10 +198,12 @@
       const log = document.getElementById("log");
       const newBtn = document.getElementById("newBtn");
       const autoBtn = document.getElementById("autoBtn");
+      const flipBtn = document.getElementById("flipBtn");
 
       let selected = null;
       let state = null;
       let autoAgent = false;
+      let boardFlipped = false;
 
       const getModelContext = () =>
         (typeof document !== "undefined" && (document.modelContext ?? navigator.modelContext)) || null;
@@ -252,11 +255,13 @@
         boardRoot.innerHTML = "";
 
         for (let row = 0; row < 8; row++) {
+          const rankIndex = boardFlipped ? 7 - row : row;
           for (let col = 0; col < 8; col++) {
-            const square = squareName(col, row);
-            const squareVal = board[row]?.[col] || "";
+            const fileIndex = boardFlipped ? 7 - col : col;
+            const square = squareName(fileIndex, rankIndex);
+            const squareVal = board[rankIndex]?.[fileIndex] || "";
             const piece = pieceGlyphs[squareVal] || "";
-            const isLight = (row + col) % 2 === 0;
+            const isLight = (rankIndex + fileIndex) % 2 === 0;
             const el = document.createElement("button");
             el.className = `square ${isLight ? "light" : "dark"}`;
             el.dataset.square = square;
@@ -471,6 +476,15 @@
         if (autoAgent && state?.turn === "b" && !state?.isGameOver) {
           await requestAgentMove();
         }
+      };
+
+      flipBtn.onclick = async () => {
+        boardFlipped = !boardFlipped;
+        if (!state) {
+          await refresh();
+          return;
+        }
+        await refresh();
       };
 
       setInterval(() => {
