@@ -1,5 +1,7 @@
 import { Chess } from "chess.js";
 
+type VerboseMove = ReturnType<Chess["moves"]>[number];
+
 export interface MoveInput {
   from: string;
   to: string;
@@ -30,6 +32,15 @@ export interface GameMoveResult {
 }
 
 export type MoveError = { error: string };
+
+const PIECE_VALUE: Record<string, number> = {
+  p: 1,
+  n: 3,
+  b: 3,
+  r: 5,
+  q: 9,
+  k: 100,
+};
 
 function emptyBoardState(): string[][] {
   return Array.from({ length: 8 }, () => Array(8).fill(""));
@@ -104,12 +115,28 @@ export class ChessGame {
       throw new Error("no_legal_moves");
     }
 
-    const selectedMove = moves[0];
+    const selectedMove = this.pickHumanlikeMove(moves);
     return this.apply({
       from: selectedMove.from,
       to: selectedMove.to,
       promotion: selectedMove.promotion as MoveInput["promotion"] | undefined,
     });
+  }
+
+  private pickHumanlikeMove(moves: VerboseMove[]): VerboseMove {
+    const captures = moves.filter((move) => Boolean((move as { captured?: string }).captured));
+
+    const pool = captures.length > 0 ? captures : moves;
+    return pool.reduce((best, current) => {
+      const currentCaptured = String((current as { captured?: string }).captured || "");
+      const bestCaptured = String((best as { captured?: string }).captured || "");
+      const bestValue = PIECE_VALUE[bestCaptured] || 0;
+      const currentValue = PIECE_VALUE[currentCaptured] || 0;
+      if (currentValue > bestValue) {
+        return current;
+      }
+      return Math.random() < 0.5 ? current : best;
+    }, pool[0]);
   }
 
   private apply(input: MoveInput): GameMoveResult {

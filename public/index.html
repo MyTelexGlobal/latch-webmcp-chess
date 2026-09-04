@@ -263,6 +263,7 @@
       let selected = null;
       let state = null;
       let autoAgent = false;
+      let moveInProgress = false;
       let boardFlipped = false;
 
       const getModelContext = () =>
@@ -412,11 +413,22 @@
             });
           }
         } catch {
-          // fallback to local auto move (if allowed by user)
-          if (autoAgent) {
-            await requestAgentMove();
-          }
+          // no-op
         }
+      }
+
+      function setAutoButtonState() {
+        autoBtn.textContent = autoAgent ? "Auto request agent move (on)" : "Auto request agent move";
+      }
+
+      async function requestAgentWhenPossible() {
+        if (moveInProgress) {
+          return;
+        }
+        if (!autoAgent || !state || state.turn !== "b" || state.isGameOver) {
+          return;
+        }
+        await requestAgentMove();
       }
 
       async function requestAgentMove() {
@@ -432,6 +444,7 @@
       async function onSquareClick(square) {
         if (!state) return;
         if (state.turn !== "w" || state.isGameOver) return;
+        if (moveInProgress) return;
 
         if (!selected) {
           const file = square.charCodeAt(0) - 97;
@@ -448,17 +461,18 @@
         const from = selected;
         const to = square;
         selected = null;
+        moveInProgress = true;
         try {
           const response = await callTool("submit_human_move", { from, to });
           appendLog(`Move accepted: ${response?.move || `${from}->${to}`}`);
           await refresh();
           await pokeAgentAfterHumanMove(from, to);
-          if (autoAgent && state?.turn === "b" && !state?.isGameOver) {
-            await requestAgentMove();
-          }
+          await requestAgentWhenPossible();
         } catch (err) {
           appendLog(`Move failed: ${err.message}`);
           refresh();
+        } finally {
+          moveInProgress = false;
         }
       }
 
@@ -575,15 +589,15 @@
       newBtn.onclick = async () => {
         await callTool("start_game");
         await refresh();
+        setAutoButtonState();
         appendLog("New game started");
+        await requestAgentWhenPossible();
       };
 
       autoBtn.onclick = async () => {
         autoAgent = !autoAgent;
-        autoBtn.textContent = autoAgent ? "Auto request agent move (on)" : "Auto request agent move";
-        if (autoAgent && state?.turn === "b" && !state?.isGameOver) {
-          await requestAgentMove();
-        }
+        setAutoButtonState();
+        await requestAgentWhenPossible();
       };
 
       flipBtn.onclick = async () => {
@@ -600,8 +614,11 @@
       }, 1200);
 
       window.addEventListener("load", async () => {
+        autoAgent = true;
         await refresh();
         registerWebMcpTools();
+        setAutoButtonState();
+        await requestAgentWhenPossible();
         appendLog("Board ready.");
       });
     </script>
