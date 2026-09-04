@@ -11,6 +11,8 @@
     "start": "npm run build && node dist/server.js",
     "start:4174": "PORT=4174 npm run start",
     "start:4175": "PORT=4175 npm run start",
+    "start:4176": "PORT=4176 npm run start",
+    "start:auto": "PORT=0 npm run start",
     "open:4174": "npm run start:4174",
     "typecheck": "tsc --noEmit"
   },
