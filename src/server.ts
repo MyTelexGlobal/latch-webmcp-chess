@@ -9,7 +9,8 @@ type ToolCallBody = {
 };
 
 const game = new ChessGame();
-const port = Number(process.env.PORT ?? 4173);
+const basePort = Number(process.env.PORT ?? 4173);
+const host = process.env.HOST ?? "127.0.0.1";
 const publicRoot = resolve(process.cwd(), "public");
 
 function toJson(value: unknown): string {
@@ -199,6 +200,31 @@ const server = createServer(async (req, res) => {
   res.end("not found");
 });
 
-server.listen(port, "127.0.0.1", () => {
-  console.log(`latch-webmcp-chess is live at http://127.0.0.1:${port}`);
-});
+function startServer(attempt = 0): void {
+  const port = basePort + attempt;
+  server.removeAllListeners("error");
+  server.once("error", (error: NodeJS.ErrnoException) => {
+    if (error.code === "EADDRINUSE") {
+      console.warn(`Port ${port} is busy, trying ${port + 1}`);
+      startServer(attempt + 1);
+      return;
+    }
+
+    if (error.code === "EPERM") {
+      console.error(`Failed to bind ${host}:${port}: EPERM`);
+      process.exit(1);
+    }
+
+    throw error;
+  });
+
+  server.once("listening", () => {
+    const address = server.address();
+    const port = typeof address === "string" ? address : address?.port;
+    console.log(`latch-webmcp-chess is live at http://${host}:${port}`);
+  });
+
+  server.listen(port, host);
+}
+
+startServer();
