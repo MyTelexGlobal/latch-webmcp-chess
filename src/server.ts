@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve, extname } from "node:path";
-import { type MoveInput, ChessGame } from "./chess-game";
+import { type MoveInput, ChessGame } from "./chess-game.js";
 
 type ToolCallBody = {
   name: string;
@@ -37,8 +37,9 @@ function normalizeMove(args?: Record<string, unknown>) {
     throw new Error("invalid_args");
   }
 
-  const from = String(args.from ?? "").toLowerCase();
-  const to = String(args.to ?? "").toLowerCase();
+  const raw = args as Record<string, unknown>;
+  const from = String(raw.from ?? "").toLowerCase();
+  const to = String(raw.to ?? "").toLowerCase();
   const promotion = (typeof args.promotion === "string" ? args.promotion : undefined) as
     | "q"
     | "r"
@@ -71,7 +72,7 @@ async function callTool(body: ToolCallBody) {
     }
 
     case "submit_human_move": {
-      const move = normalizeMove(args as MoveInput);
+      const move = normalizeMove(args);
       const result = game.submitHumanMove(move);
       const state = game.state();
       return {
@@ -81,7 +82,7 @@ async function callTool(body: ToolCallBody) {
     }
 
     case "make_agent_move": {
-      const move = normalizeMove(args as MoveInput);
+      const move = normalizeMove(args);
       const result = game.submitBlackMove(move);
       return {
         content: [{ type: "text", text: toJson({ move: result.san, state: result.state, result }) }],
