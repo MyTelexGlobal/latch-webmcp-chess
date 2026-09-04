@@ -8,6 +8,9 @@
   "scripts": {
     "dev": "tsx src/server.ts",
     "start": "tsx src/server.ts",
+    "start:4174": "PORT=4174 npm run start",
+    "start:4175": "PORT=4175 npm run start",
+    "open:4174": "npm run start:4174",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

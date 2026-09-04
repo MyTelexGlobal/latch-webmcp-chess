@@ -21,12 +21,22 @@ Tools currently available:
 
 ```bash
 npm install
-npm run dev
+PORT=4174 npm run start:4174
 ```
 
-Open `http://127.0.0.1:4173`.
+Open `http://127.0.0.1:4174` (or next free port shown in terminal).
 
 The app registers tools in page contexts that expose `document.modelContext` / `navigator.modelContext`.
+
+If port 4174 is busy:
+
+```bash
+PORT=4175 npm run start:4175
+```
+
+The server will also fallback automatically from `PORT` to the next free port while running.
+
+If you still see `ERR_CONNECTION_REFUSED`, it means the process did not start on your machine and you need to run it from a real terminal first (this workspace cannot always bind localhost sockets).
 
 ## Architecture
 
