@@ -465,9 +465,12 @@
         appendLog("New game started");
       };
 
-      autoBtn.onclick = () => {
+      autoBtn.onclick = async () => {
         autoAgent = !autoAgent;
         autoBtn.textContent = autoAgent ? "Auto request agent move (on)" : "Auto request agent move";
+        if (autoAgent && state?.turn === "b" && !state?.isGameOver) {
+          await requestAgentMove();
+        }
       };
 
       setInterval(() => {
